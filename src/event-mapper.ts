@@ -114,6 +114,10 @@ export class DshStreamMapper {
 	private finished = false;
 	private textPartId: string | undefined;
 	private reasoningPartId: string | undefined;
+	/** Whether the open text/reasoning part already emitted a delta (block-end carries the FULL block, so it must not duplicate deltas). */
+	private textPartHasDelta = false;
+	private reasoningPartHasDelta = false;
+	private openToolInputIds = new Set<string>();
 
 	/**
 	 * Feed one raw chunk (the `assistant/chunk` event's `chunk` field).
@@ -142,6 +146,7 @@ export class DshStreamMapper {
 					out.push({ type: "text-start", id: this.textPartId });
 				}
 				if (typeof c.text === "string" && c.text.length > 0) {
+					this.textPartHasDelta = true;
 					out.push({ type: "text-delta", id: this.textPartId, delta: c.text });
 				}
 				break;
@@ -152,6 +157,7 @@ export class DshStreamMapper {
 					out.push({ type: "reasoning-start", id: this.reasoningPartId });
 				}
 				if (typeof c.text === "string" && c.text.length > 0) {
+					this.reasoningPartHasDelta = true;
 					out.push({
 						type: "reasoning-delta",
 						id: this.reasoningPartId,
@@ -167,6 +173,14 @@ export class DshStreamMapper {
 				const delta =
 					typeof c.argumentsDelta === "string" ? c.argumentsDelta : "";
 				this.toolArgBuffers.set(id, current + delta);
+				if (!this.openToolInputIds.has(id)) {
+					this.openToolInputIds.add(id);
+					out.push({
+						type: "tool-input-start",
+						id,
+						toolName: typeof c.name === "string" ? c.name : "tool",
+					});
+				}
 				out.push({
 					type: "tool-input-delta",
 					id,
@@ -183,6 +197,10 @@ export class DshStreamMapper {
 							: `tool-${this.parts.length}`;
 					const args =
 						typeof block.arguments === "string" ? block.arguments : "{}";
+					if (this.openToolInputIds.has(id)) {
+						this.openToolInputIds.delete(id);
+						out.push({ type: "tool-input-end", id });
+					}
 					out.push({
 						type: "tool-call",
 						toolCallId: id,
@@ -195,13 +213,19 @@ export class DshStreamMapper {
 						this.textPartId = "text";
 						out.push({ type: "text-start", id: this.textPartId });
 					}
-					out.push({
-						type: "text-delta",
-						id: this.textPartId,
-						delta: block.text,
-					});
+					// The runtime streams `text-delta` chunks AND a final `block-end`
+					// carrying the FULL assembled text. Emit the full text only when
+					// no delta was seen (non-streaming adapters), never duplicate.
+					if (!this.textPartHasDelta && block.text.length > 0) {
+						out.push({
+							type: "text-delta",
+							id: this.textPartId,
+							delta: block.text,
+						});
+					}
 					out.push({ type: "text-end", id: this.textPartId });
 					this.textPartId = undefined;
+					this.textPartHasDelta = false;
 				} else if (
 					block?.type === "reasoning" &&
 					typeof block.text === "string"
@@ -210,13 +234,16 @@ export class DshStreamMapper {
 						this.reasoningPartId = "reasoning";
 						out.push({ type: "reasoning-start", id: this.reasoningPartId });
 					}
-					out.push({
-						type: "reasoning-delta",
-						id: this.reasoningPartId,
-						delta: block.text,
-					});
+					if (!this.reasoningPartHasDelta && block.text.length > 0) {
+						out.push({
+							type: "reasoning-delta",
+							id: this.reasoningPartId,
+							delta: block.text,
+						});
+					}
 					out.push({ type: "reasoning-end", id: this.reasoningPartId });
 					this.reasoningPartId = undefined;
+					this.reasoningPartHasDelta = false;
 				}
 				break;
 			}

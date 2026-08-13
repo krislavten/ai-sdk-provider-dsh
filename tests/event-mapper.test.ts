@@ -43,6 +43,7 @@ describe("DshStreamMapper", () => {
 			argumentsDelta: '{"cmd',
 		});
 		expect(deltaParts).toEqual([
+			{ type: "tool-input-start", id: "call_1", toolName: "bash" },
 			{ type: "tool-input-delta", id: "call_1", delta: '{"cmd' },
 		]);
 		mapper.feedChunk({
@@ -62,6 +63,7 @@ describe("DshStreamMapper", () => {
 			},
 		});
 		expect(endParts).toEqual([
+			{ type: "tool-input-end", id: "call_1" },
 			{
 				type: "tool-call",
 				toolCallId: "call_1",
@@ -70,6 +72,48 @@ describe("DshStreamMapper", () => {
 				providerExecuted: true,
 			},
 		]);
+	});
+
+	it("does not duplicate text when deltas were already streamed (block-end carries full text)", () => {
+		const mapper = new DshStreamMapper();
+		mapper.feedChunk({ type: "text-delta", index: 0, text: "hello" });
+		const endParts = mapper.feedChunk({
+			type: "block-end",
+			index: 0,
+			block: { type: "text", text: "hello" },
+		});
+		expect(endParts).toEqual([{ type: "text-end", id: "text" }]);
+		// assembled text appears exactly once
+		const text = mapper.assembled
+			.filter((p) => p.type === "text-delta")
+			.map((p) => p.delta)
+			.join("");
+		expect(text).toBe("hello");
+	});
+
+	it("falls back to full text from block-end when no delta was streamed", () => {
+		const mapper = new DshStreamMapper();
+		const endParts = mapper.feedChunk({
+			type: "block-end",
+			index: 0,
+			block: { type: "text", text: "full text only" },
+		});
+		expect(endParts).toEqual([
+			{ type: "text-start", id: "text" },
+			{ type: "text-delta", id: "text", delta: "full text only" },
+			{ type: "text-end", id: "text" },
+		]);
+	});
+
+	it("does not duplicate reasoning text at block-end after reasoning deltas", () => {
+		const mapper = new DshStreamMapper();
+		mapper.feedChunk({ type: "reasoning-delta", index: 0, text: "think" });
+		const endParts = mapper.feedChunk({
+			type: "block-end",
+			index: 0,
+			block: { type: "reasoning", text: "think" },
+		});
+		expect(endParts).toEqual([{ type: "reasoning-end", id: "reasoning" }]);
 	});
 
 	it("opens a text part but emits no delta for empty text", () => {
