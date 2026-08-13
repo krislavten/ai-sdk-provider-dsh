@@ -1,0 +1,122 @@
+name: Release
+
+# Auto-publishes ai-sdk-provider-dsh to npm via npm Trusted Publishing (OIDC) —
+# no npm token / OTP needed. Modeled on kanyun-inc/pilot's
+# release-agenthub-sdk.yml: bump package.json version on main (or push a v* tag),
+# this workflow publishes that version if it is not already on npm. Re-runs are
+# safe: the version guard skips an already-published version, and the tag/release
+# step repairs itself independently of whether this run published. Also runnable
+# manually via "Run workflow" — from main only, see the job-level guard.
+#
+# ── Bootstrap: DO THIS BEFORE THE FIRST AUTOMATIC RUN ────────────────────────
+# A Trusted Publisher can only be configured on a package that already exists.
+# ai-sdk-provider-dsh@0.1.x was published manually, so the package exists — only
+# the trust relationship is missing. On npmjs.com, package Settings →
+# Trusted Publisher:
+#   Publisher         = GitHub Actions
+#   Organization      = krislavten
+#   Repository        = ai-sdk-provider-dsh
+#   Workflow filename = release.yml
+#   Environment       = (leave blank — this workflow uses none)
+# Until that is done this workflow fails at the publish step with a 404. That is
+# the missing bootstrap, not a broken workflow.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "package.json"
+  workflow_dispatch: {}
+
+concurrency:
+  # Never cancel an in-flight publish; serialize releases instead.
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write # create the git tag + GitHub Release
+  id-token: write # npm Trusted Publishing (OIDC)
+
+jobs:
+  release:
+    # Releases only ever run from main. `workflow_dispatch` stays — re-running a
+    # release is this workflow's documented recovery path — but the "Run
+    # workflow" dropdown lets anyone with write access pick ANY branch, and that
+    # branch's code is what gets checked out, packed, published under this
+    # repository's OIDC identity and tagged. Without this guard main's PR review
+    # and branch protection would not sit on the release path at all.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Read package name & version
+        id: pkg
+        run: |
+          echo "name=$(node -p "require('./package.json').name")" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if this version is already on npm
+        id: check
+        run: |
+          name='${{ steps.pkg.outputs.name }}'
+          ver='${{ steps.pkg.outputs.version }}'
+          if npm view "$name@$ver" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$name@$ver is already published — nothing to do."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Publishing $name@$ver."
+          fi
+
+      - name: Typecheck & test
+        if: steps.check.outputs.published == 'false'
+        run: |
+          pnpm run check
+          pnpm run test
+
+      # Trusted Publishing (OIDC) requires npm >= 11.5.1 and Node 22 ships
+      # npm 10.x. `@latest` can't be used: npm 12.0.0 raised its engines floor
+      # above the Node 22.19.0 we run. Pin npm@11.
+      - name: Upgrade npm for OIDC trusted publishing
+        if: steps.check.outputs.published == 'false'
+        run: npm install -g npm@11
+
+      # Public repo → npm auto-enables provenance (SLSA). The publish reads
+      # publishConfig.access=public from package.json.
+      - name: Publish to npm (Trusted Publishing / OIDC, with provenance)
+        if: steps.check.outputs.published == 'false'
+        run: npm publish --access public
+
+      # Deliberately NOT gated on `published == 'false'`: "version on npm" and
+      # "version has a tag/release" are independent states. When a publish
+      # succeeded but `gh release create` failed, the old gating made every
+      # re-run skip this step and report success, leaving the tag missing
+      # forever. Reaching this step already means the version is on npm.
+      - name: Tag & GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          name='${{ steps.pkg.outputs.name }}'
+          ver='${{ steps.pkg.outputs.version }}'
+          tag="v$ver"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::notice::Release $tag already exists — skipping."
+            exit 0
+          fi
+          gh release create "$tag" \
+            --target "${{ github.sha }}" \
+            --title "$name v$ver" \
+            --notes "Automated release of \`$name@$ver\` published to npm via OIDC trusted publishing."
