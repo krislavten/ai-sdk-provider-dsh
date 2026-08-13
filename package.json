@@ -1,6 +1,6 @@
 {
   "name": "ai-sdk-provider-dsh",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AI SDK provider that drives a DeepSeek Harness (dsh) runtime as a language model (LanguageModelV3 — works on both AI SDK v6 and v7)",
   "type": "module",
   "license": "MIT",
@@ -27,10 +27,7 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./runtime": {
-      "types": "./dist/runtime.d.ts",
-      "default": "./dist/runtime.js"
-    }
+    "./runtime/*": "./runtime/*"
   },
   "scripts": {
     "build": "tsup",
