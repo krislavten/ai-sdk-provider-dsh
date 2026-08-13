@@ -73,6 +73,7 @@
     "@ai-sdk/provider": "^4.0.0",
     "@ai-sdk/provider-utils": "^5.0.0",
     "@biomejs/biome": "^1.9.0",
+    "@deepseek-ai/dsh-llm-replay": "0.1.0-rc.6",
     "@deepseek-ai/dsh-sdk-client": "0.1.0-rc.6",
     "@types/node": "^22.0.0",
     "ai": "^7.0.0",

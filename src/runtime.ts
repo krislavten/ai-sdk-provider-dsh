@@ -99,7 +99,21 @@ function bundledRuntime(): { command: string; args: string[] } {
 	return { command: process.execPath, args: [binPath, configPath] };
 }
 
-export class DshRuntime {
+/**
+ * The runtime surface the LanguageModel depends on. Kept as an interface so
+ * unit tests can inject a fake (no subprocess); `DshRuntime` is the real
+ * implementation.
+ */
+export interface DshRuntimeLike {
+	readonly sessionId: string;
+	run(
+		input: string,
+		onNotification: (notification: DshNotification) => void,
+	): Promise<{ events: unknown[]; finalResponse: string }>;
+	close(): Promise<void>;
+}
+
+export class DshRuntime implements DshRuntimeLike {
 	private harness: DeepSeekHarness | undefined;
 	private closed = false;
 	readonly sessionId: string;
