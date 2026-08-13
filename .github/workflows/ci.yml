@@ -34,8 +34,15 @@ jobs:
       - name: Override AI SDK majors (${{ matrix.name }})
         run: |
           pnpm add -D ai@${{ matrix.ai }} @ai-sdk/provider@${{ matrix.provider }} @ai-sdk/provider-utils@${{ matrix.provider-utils }}
-      - name: Typecheck
-        run: pnpm run check
+      - name: Typecheck (${{ matrix.name }})
+        # Examples use the v7 user-facing API (result.stream, finalStep);
+        # check them only on the v7 lane. src/tests must pass on both majors.
+        run: |
+          if [ "${{ matrix.name }}" = "ai-v7" ]; then
+            pnpm run check
+          else
+            pnpm exec tsc --noEmit -p tsconfig.src-only.json
+          fi
       - name: Lint
         run: pnpm run lint
       - name: Build
