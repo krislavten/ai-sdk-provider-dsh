@@ -4,6 +4,10 @@
   "description": "AI SDK provider that drives a DeepSeek Harness (dsh) runtime as a language model (LanguageModelV3 — works on both AI SDK v6 and v7)",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krislavten/ai-sdk-provider-dsh.git"
+  },
   "keywords": [
     "ai-sdk",
     "deepseek",
