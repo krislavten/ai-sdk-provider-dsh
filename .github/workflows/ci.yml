@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ai-version: "6"
+            provider-version: "^3.0.8"
+            node: "22"
+          - ai-version: "7"
+            provider-version: "^4.0.0"
+            node: "22"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - name: Install with AI SDK v${{ matrix.ai-version }}
+        run: |
+          pnpm add -D ai@^${{ matrix.ai-version }} @ai-sdk/provider@${{ matrix.provider-version }} @ai-sdk/provider-utils@${{ matrix.ai-version == '6' && '^4.0.19' || '^5.0.0' }}
+          pnpm install
+      - run: pnpm run check
+      - run: pnpm run lint
+      - run: pnpm run test
