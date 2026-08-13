@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/krislavten/ai-sdk-provider-dsh.git"
+    "url": "git+https://github.com/krislavten/ai-sdk-provider-dsh.git"
   },
   "keywords": [
     "ai-sdk",
@@ -23,7 +23,10 @@
   "packageManager": "pnpm@10.28.1",
   "files": [
     "dist",
-    "runtime"
+    "runtime",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -40,7 +43,8 @@
     "test": "vitest run",
     "lint": "biome check src tests",
     "format": "biome check --write src tests",
-    "prepublishOnly": "pnpm run check && pnpm run build"
+    "prepublishOnly": "pnpm run check && pnpm run build",
+    "check:publish": "publint"
   },
   "dependencies": {
     "@deepseek-ai/dsh-agent-spine-demo": "0.1.0-rc.6",
@@ -81,7 +85,8 @@
     "tsx": "^4.23.12",
     "typescript": "^5.9.0",
     "vitest": "^3.0.0",
-    "zod": "^4.0.0"
+    "zod": "^4.0.0",
+    "publint": "^0.3.0"
   },
   "publishConfig": {
     "access": "public"
@@ -91,5 +96,6 @@
       "node-pty",
       "@deepseek-ai/node-addon-landlock-run"
     ]
-  }
+  },
+  "sideEffects": false
 }

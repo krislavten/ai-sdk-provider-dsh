@@ -38,7 +38,11 @@ jobs:
         run: pnpm run check
       - name: Lint
         run: pnpm run lint
+      - name: Build
+        run: pnpm run build
+      - name: Package lint (publint)
+        run: pnpm exec publint
       - name: Unit tests
-        run: pnpm exec vitest run tests/event-mapper.test.ts
-      - name: E2E (real dsh runtime + mock model endpoint)
-        run: pnpm exec vitest run tests/e2e.test.ts
+        run: pnpm exec vitest run tests/event-mapper.test.ts tests/errors.test.ts tests/language-model.test.ts
+      - name: E2E (keyless replay: real dsh runtime + recorded fixtures)
+        run: pnpm exec vitest run tests/replay-e2e.test.ts tests/replay-multi-e2e.test.ts tests/e2e.test.ts
