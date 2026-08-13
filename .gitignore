@@ -4,3 +4,6 @@ dist/
 .env
 .env.*
 !.env.example
+
+# local harness session logs
+.sessions/
