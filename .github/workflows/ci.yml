@@ -11,24 +11,34 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - ai-version: "6"
-            provider-version: "^3.0.8"
-            node: "22"
-          - ai-version: "7"
-            provider-version: "^4.0.0"
-            node: "22"
+          - name: "ai-v6"
+            ai: "^6.0.116"
+            provider: "^3.0.8"
+            provider-utils: "^4.0.19"
+          - name: "ai-v7"
+            ai: "^7.0.0"
+            provider: "^4.0.0"
+            provider-utils: "^5.0.0"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.1
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 22
           cache: pnpm
-      - name: Install with AI SDK v${{ matrix.ai-version }}
+      - name: Install base deps
+        run: pnpm install --frozen-lockfile
+      - name: Override AI SDK majors (${{ matrix.name }})
         run: |
-          pnpm add -D ai@^${{ matrix.ai-version }} @ai-sdk/provider@${{ matrix.provider-version }} @ai-sdk/provider-utils@${{ matrix.ai-version == '6' && '^4.0.19' || '^5.0.0' }}
-          pnpm install
-      - run: pnpm run check
-      - run: pnpm run lint
-      - run: pnpm run test
+          pnpm add -D ai@${{ matrix.ai }} @ai-sdk/provider@${{ matrix.provider }} @ai-sdk/provider-utils@${{ matrix.provider-utils }}
+      - name: Typecheck
+        run: pnpm run check
+      - name: Lint
+        run: pnpm run lint
+      - name: Unit tests
+        run: pnpm exec vitest run tests/event-mapper.test.ts
+      - name: E2E (real dsh runtime + mock model endpoint)
+        run: pnpm exec vitest run tests/e2e.test.ts
