@@ -139,3 +139,13 @@ describe("isAPICallError / getErrorMetadata", () => {
 		expect(getErrorMetadata(new Error("x"))).toBeUndefined();
 	});
 });
+
+describe("classifyDshError credential", () => {
+	it("classifies DshCredentialError as LoadAPIKeyError", () => {
+		const err = new Error("DEEPSEEK_API_KEY is required");
+		err.name = "DshCredentialError";
+		const classified = classifyDshError(err);
+		expect(classified).toBeInstanceOf(LoadAPIKeyError);
+		expect(classified.message).toContain("DEEPSEEK_API_KEY");
+	});
+});

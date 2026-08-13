@@ -120,6 +120,34 @@ export class DshRuntime implements DshRuntimeLike {
 
 	constructor(private readonly options: DshRuntimeOptions) {
 		this.sessionId = options.sessionId ?? crypto.randomUUID();
+		this.assertCredentialPresent();
+	}
+
+	/**
+	 * Fail fast with a clear authentication error when the runtime would have
+	 * no way to call the model. The runtime reads credentials from its own
+	 * env (explicit `env` option or inherited `process.env`); the
+	 * `deepseek-official` route requires `DEEPSEEK_API_KEY`. If you provide
+	 * keys through `$DSH_HOME/.credentials.yaml` instead, pass a dummy
+	 * `DEEPSEEK_API_KEY` in `env` (or set `DSH_HOME`) to satisfy the check.
+	 */
+	private assertCredentialPresent(): void {
+		const effectiveEnv = this.options.env ?? process.env;
+		// Replay mode (DSH_SNAPSHOT_FILE set) replaces the LLM adapter with
+		// @deepseek-ai/dsh-llm-replay — no credential needed.
+		if (effectiveEnv.DSH_SNAPSHOT_FILE) return;
+		if (
+			this.options.provider === "deepseek-official" &&
+			!effectiveEnv.DEEPSEEK_API_KEY
+		) {
+			const error = new Error(
+				"dsh runtime: DEEPSEEK_API_KEY is required for provider 'deepseek-official'. " +
+					"Set it in the runtime `env` option or export it in the environment. " +
+					"(If you use $DSH_HOME/.credentials.yaml, pass a dummy DEEPSEEK_API_KEY in env.)",
+			);
+			error.name = "DshCredentialError";
+			throw error;
+		}
 	}
 
 	private getHarness(): DeepSeekHarness {

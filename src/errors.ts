@@ -111,6 +111,10 @@ export function classifyDshError(
 	if (error instanceof Error) {
 		const name = error.name;
 		const message = error.message;
+		// Missing DEEPSEEK_API_KEY — surfaced by DshRuntime.assertCredentialPresent.
+		if (name === "DshCredentialError") {
+			return createAuthenticationError(message);
+		}
 		// Transport closed: the runtime subprocess died or its stdio closed.
 		if (name === "TransportClosedError") {
 			return createAPICallError({
